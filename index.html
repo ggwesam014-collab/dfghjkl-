@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bloxia Platform</title>
     
-    <link rel="manifest" href='data:application/json,{"name":"Bloxia","short_name":"Bloxia","start_url":".","display":"standalone","background_color":"#ffffff","theme_color":"#0078d4","icons":[{"src":"https://img.freepik.com/premium-vector/cube-logo-design-abstract-cube-logo-design_219523-224.jpg","sizes":"512x512","type":"image/jpeg"}]}'>
+    <link rel="manifest" id="manifest-link">
 
     <style>
         :root { --main-blue: #0078d4; --bg: #ffffff; --text: #333; }
@@ -32,9 +32,9 @@
 <body>
 
     <div id="update-overlay">
-        <h1>New Update Available!</h1>
-        <p>You must download the latest version to continue.</p>
-        <button class="btn" style="background:#27ae60" onclick="downloadData('update')">Download Update</button>
+        <h1>Update Required!</h1>
+        <p>Please download the latest version to continue using Bloxia.</p>
+        <button class="btn" style="background:#27ae60" onclick="downloadData('update')">Download New Update</button>
     </div>
 
     <header id="header">
@@ -51,33 +51,28 @@
     <main id="content">
         <div id="home" class="page active">
             <h2>Welcome to Bloxia</h2>
-            <p>A platform with endless experiences and total freedom.</p>
+            <p>The ultimate platform for gaming experiences and freedom.</p>
         </div>
 
         <div id="install" class="page">
             <h2 id="display-name">Bloxia Game</h2>
-            <p>Status: Ready to install</p>
-            <button class="btn" id="mainInstallBtn">Install Game & Shortcut</button>
+            <button class="btn" id="mainInstallBtn">Install Game & App Shortcut</button>
         </div>
 
         <div id="admin" class="page">
-            <h2>Admin Control Panel</h2>
-            <label>Game Name:</label>
-            <input type="text" id="cfg-name" placeholder="Enter Game Name">
-            
-            <label>Select Game Folder:</label>
+            <h2>Admin Panel</h2>
+            <input type="text" id="cfg-name" placeholder="Game Name">
+            <label>Game Folder:</label>
             <input type="file" id="cfg-folder" webkitdirectory directory multiple>
-            
-            <label>Select Update Folder:</label>
+            <label>Update Folder:</label>
             <input type="file" id="cfg-update" webkitdirectory directory multiple>
-
-            <label><input type="checkbox" id="cfg-force"> Enable Forced Update Screen</label>
-            <button class="btn" style="background:#27ae60" onclick="saveToDatabase()">Save & Deploy to All Devices</button>
+            <label><input type="checkbox" id="cfg-force"> Force Update Screen</label>
+            <button class="btn" style="background:#27ae60" onclick="saveToDatabase()">Save & Push Update</button>
         </div>
 
         <div id="settings" class="page">
             <h2>Settings</h2>
-            <button class="btn" onclick="document.body.classList.toggle('dark-mode')">Toggle Dark Mode</button>
+            <button class="btn" onclick="document.body.classList.toggle('dark-mode')">Toggle Dark/Light Mode</button>
         </div>
     </main>
 
@@ -87,22 +82,34 @@
         let deferredPrompt;
         let db;
 
-        // Initialize Database
-        const request = indexedDB.open("BloxiaData", 1);
+        // Create Dynamic Manifest
+        const manifest = {
+            "name": "Bloxia",
+            "short_name": "Bloxia",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#ffffff",
+            "description": "Bloxia Gaming Platform",
+            "icons": [{"src": "https://img.freepik.com/premium-vector/cube-logo-design-abstract-cube-logo-design_219523-224.jpg", "sizes": "512x512", "type": "image/jpeg"}]
+        };
+        const stringManifest = JSON.stringify(manifest);
+        const blob = new Blob([stringManifest], {type: 'application/json'});
+        document.getElementById('manifest-link').setAttribute('href', URL.createObjectURL(blob));
+
+        // Database Setup
+        const request = indexedDB.open("BloxiaDB", 1);
         request.onupgradeneeded = e => {
             db = e.target.result;
-            db.createObjectStore("store", { keyPath: "id" });
+            db.createObjectStore("settings", { keyPath: "id" });
         };
         request.onsuccess = e => {
             db = e.target.result;
             loadConfig();
         };
 
+        // UI Functions
         function unlockAdmin() {
-            if (prompt("Enter Admin Password:") === "Ww102030") {
-                document.getElementById('admin-nav-item').style.display = 'block';
-                alert("Admin Access Granted.");
-            }
+            if (prompt("Password:") === "Ww102030") document.getElementById('admin-nav-item').style.display = 'block';
         }
 
         function showPage(id) {
@@ -113,76 +120,77 @@
         async function saveToDatabase() {
             const name = document.getElementById('cfg-name').value || "Bloxia";
             const force = document.getElementById('cfg-force').checked;
-            const gameFiles = document.getElementById('cfg-folder').files;
-            const updateFiles = document.getElementById('cfg-update').files;
+            const gameFiles = Array.from(document.getElementById('cfg-folder').files);
+            const updateFiles = Array.from(document.getElementById('cfg-update').files);
 
-            const transaction = db.transaction("store", "readwrite");
-            const store = transaction.objectStore("store");
-            
-            store.put({ 
-                id: "config", 
-                name, 
-                force, 
-                gameFiles: Array.from(gameFiles), 
-                updateFiles: Array.from(updateFiles) 
-            });
-
-            alert("Data saved permanently! Updates are now live.");
+            const transaction = db.transaction("settings", "readwrite");
+            const store = transaction.objectStore("settings");
+            store.put({ id: "config", name, force, gameFiles, updateFiles });
+            alert("Updated Successfully! Permanent storage active.");
             location.reload();
         }
 
         async function loadConfig() {
-            const transaction = db.transaction("store", "readonly");
-            const store = transaction.objectStore("store");
+            const transaction = db.transaction("settings", "readonly");
+            const store = transaction.objectStore("settings");
             const req = store.get("config");
             req.onsuccess = () => {
                 if (req.result) {
-                    const data = req.result;
-                    document.getElementById('display-name').innerText = data.name;
-                    if (data.force) document.getElementById('update-overlay').style.display = 'flex';
+                    document.getElementById('display-name').innerText = req.result.name;
+                    if (req.result.force) document.getElementById('update-overlay').style.display = 'flex';
                 }
             };
         }
 
         async function downloadData(type) {
-            const transaction = db.transaction("store", "readonly");
-            const store = transaction.objectStore("store");
-            const data = (await new Promise(r => store.get("config").onsuccess = e => r(e.target.result)));
-            
-            if (!data) return alert("No folders selected in Admin Panel!");
-
-            const zip = new JSZip();
-            const files = (type === 'game') ? data.gameFiles : data.updateFiles;
-
-            for (let file of files) {
-                zip.file(file.webkitRelativePath || file.name, file);
-            }
-
-            const content = await zip.generateAsync({type:"blob"});
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(content);
-            link.download = (type === 'game' ? data.name : "Update") + ".zip";
-            link.click();
+            const transaction = db.transaction("settings", "readonly");
+            const store = transaction.objectStore("settings");
+            const req = store.get("config");
+            req.onsuccess = async () => {
+                const data = req.result;
+                if (!data) return alert("Admin: Select folders first!");
+                
+                const zip = new JSZip();
+                const files = (type === 'game') ? data.gameFiles : data.updateFiles;
+                files.forEach(f => zip.file(f.webkitRelativePath || f.name, f));
+                
+                const blob = await zip.generateAsync({type: "blob"});
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = (type === 'game' ? data.name : "Update") + ".zip";
+                a.click();
+            };
         }
 
-        // Handle Installation Shortcut
+        // --- THE "FORCE" INSTALL PART ---
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
-            console.log("Shortcut ready to be created.");
+            console.log("Install prompt captured!");
         });
 
         document.getElementById('mainInstallBtn').onclick = async () => {
+            // 1. Download files immediately
             await downloadData('game');
+
+            // 2. Trigger the "Install App" popup
             if (deferredPrompt) {
                 deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') alert("Bloxia is now on your Desktop!");
                 deferredPrompt = null;
+            } else {
+                alert("To add to Desktop: Check the top-right corner of your browser for the 'Install' icon.");
             }
         };
 
-        // Service Worker for Update Sync
+        // Service Worker (Critical for Install button to work)
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('data:application/javascript,' + encodeURIComponent(`self.addEventListener('fetch', e => e.respondWith(fetch(e.request)));`));
+            navigator.serviceWorker.register('data:application/javascript,' + encodeURIComponent(`
+                self.addEventListener('install', e => self.skipWaiting());
+                self.addEventListener('activate', e => e.waitUntil(clients.claim()));
+                self.addEventListener('fetch', e => e.respondWith(fetch(e.request)));
+            `));
         }
     </script>
 </body>
